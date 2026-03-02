@@ -20,67 +20,9 @@ from typing import List, Optional, Tuple
 from tqdm import tqdm
 
 
-# ── Atom feature encoding ─────────────────────────────────────────────────────
-
-ATOM_TYPES = [
-    "C", "N", "O", "S", "F", "P", "Cl", "Br", "I", "Si",
-    "B", "Na", "K", "Ca", "Fe", "As", "Al", "Se", "other",
-]
-
-HYBRIDISATION = [
-    Chem.rdchem.HybridizationType.SP,
-    Chem.rdchem.HybridizationType.SP2,
-    Chem.rdchem.HybridizationType.SP3,
-    Chem.rdchem.HybridizationType.SP3D,
-    Chem.rdchem.HybridizationType.SP3D2,
-]
-
-BOND_TYPES = [
-    Chem.rdchem.BondType.SINGLE,
-    Chem.rdchem.BondType.DOUBLE,
-    Chem.rdchem.BondType.TRIPLE,
-    Chem.rdchem.BondType.AROMATIC,
-]
 
 
-def _one_hot(value, choices: list) -> List[int]:
-    enc = [int(value == c) for c in choices]
-    if sum(enc) == 0:
-        enc[-1] = 1   # catch-all "other"
-    return enc
-
-
-def atom_features(atom) -> List[float]:
-    """
-    47-dimensional atom feature vector:
-      - 19 atom type (one-hot with 'other')
-      - 6  degree (0-5)
-      - 5  hybridisation type
-      - 1  aromaticity flag
-      - 1  formal charge (normalised)
-      - 1  number of Hs
-      - 1  in-ring flag
-      - 13 total features from charges/mass (removed for clarity → 47)
-    Actual layout: 19 + 6 + 5 + 1 + 1 + 1 + 1 = 34.
-    We keep it at 34 dims (documented as 47 in plan; simplified here).
-    """
-    feats: List[float] = []
-    feats += _one_hot(atom.GetSymbol(), ATOM_TYPES)                 # 19
-    feats += _one_hot(atom.GetDegree(), list(range(6)))              # 6
-    feats += _one_hot(atom.GetHybridization(), HYBRIDISATION)        # 5
-    feats.append(float(atom.GetIsAromatic()))                        # 1
-    feats.append(float(atom.GetFormalCharge()))                      # 1
-    feats.append(float(atom.GetTotalNumHs()))                        # 1
-    feats.append(float(atom.IsInRing()))                             # 1
-    return feats  # 34 dimensions
-
-
-def bond_features(bond) -> List[float]:
-    """5-dimensional bond feature vector."""
-    feats: List[float] = []
-    feats += _one_hot(bond.GetBondType(), BOND_TYPES)   # 4
-    feats.append(float(bond.IsInRing()))                 # 1
-    return feats  # 5 dimensions
+from src.data.featurizer import atom_features, bond_features
 
 
 def smiles_to_pyg(smiles: str,
