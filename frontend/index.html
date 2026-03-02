@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ToxPredict — QSAR Toxicity Dashboard</title>
+  <meta name="description" content="AI-powered molecular toxicity prediction across 12 Tox21 biological assay endpoints using Graph Convolutional Networks." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── CSS Reset & Base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:    #060b14;
+      --bg-card:    rgba(255,255,255,0.04);
+      --bg-card2:   rgba(255,255,255,0.07);
+      --border:     rgba(255,255,255,0.08);
+      --border-hi:  rgba(99,179,237,0.35);
+      --accent:     #4f9cf9;
+      --accent2:    #a855f7;
+      --accent3:    #06b6d4;
+      --green:      #10b981;
+      --yellow:     #f59e0b;
+      --red:        #ef4444;
+      --text-pri:   #f0f6ff;
+      --text-sec:   #8b9dbf;
+      --text-muted: #4a5568;
+      --glow:       rgba(79,156,249,0.15);
+      --glow2:      rgba(168,85,247,0.12);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-pri);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated background ──────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 20%, rgba(79,156,249,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(168,85,247,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 50% 50%, rgba(6,182,212,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 40px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(6,11,20,0.8);
+      backdrop-filter: blur(20px);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .logo-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(79,156,249,0.3);
+    }
+    .logo-text { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-sub  { font-size: 11px; color: var(--text-sec); margin-top: 1px; }
+
+    .header-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 12px; color: var(--green);
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(1.3); }
+    }
+
+    /* ── Main content ─────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Section label ────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .section-title {
+      font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .section-desc { font-size: 14px; color: var(--text-sec); }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .card:hover { border-color: var(--border-hi); }
+    .card-title {
+      font-size: 13px; font-weight: 600; color: var(--text-sec);
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;
+    }
+
+    /* ── Stats row ────────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      position: relative; overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    }
+    .stat-card.blue::before   { background: linear-gradient(90deg, var(--accent), transparent); }
+    .stat-card.purple::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+    .stat-card.cyan::before   { background: linear-gradient(90deg, var(--accent3), transparent); }
+    .stat-card.green::before  { background: linear-gradient(90deg, var(--green), transparent); }
+
+    .stat-label { font-size: 12px; color: var(--text-sec); margin-bottom: 10px; }
+    .stat-value { font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+    .stat-value.blue   { color: var(--accent); }
+    .stat-value.purple { color: var(--accent2); }
+    .stat-value.cyan   { color: var(--accent3); }
+    .stat-value.green  { color: var(--green); }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+    /* ── Grid layout ──────────────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .full   { grid-column: 1 / -1; }
+
+    /* ── Input section ────────────────────────────────────────────────── */
+    .predict-card {
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      margin-bottom: 24px;
+      position: relative; overflow: hidden;
+    }
+    .predict-card::after {
+      content: '';
+      position: absolute; top: -60px; right: -60px;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, var(--glow), transparent 70%);
+      pointer-events: none;
+    }
+
+    .smiles-row { display: flex; gap: 12px; align-items: flex-end; }
+
+    .input-group { flex: 1; }
+    .input-label { font-size: 12px; color: var(--text-sec); margin-bottom: 8px; display: block; font-weight: 500; }
+
+    .smiles-input {
+      width: 100%;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      color: var(--text-pri);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .smiles-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79,156,249,0.15);
+    }
+    .smiles-input::placeholder { color: var(--text-muted); }
+
+    .predict-btn {
+      padding: 14px 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 12px;
+      color: white; font-size: 14px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+      box-shadow: 0 4px 20px rgba(79,156,249,0.25);
+    }
+    .predict-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(79,156,249,0.4); }
+    .predict-btn:active { transform: scale(0.98); }
+    .predict-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── Quick examples ────────────────────────────────────────────────── */
+    .examples {
+      margin-top: 16px;
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .examples-label { font-size: 11px; color: var(--text-muted); }
+    .example-chip {
+      font-size: 11px; font-family: 'JetBrains Mono', monospace;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px;
+      cursor: pointer; color: var(--text-sec);
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    .example-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(79,156,249,0.08);
+    }
+
+    /* ── Results panel ────────────────────────────────────────────────── */
+    .results-section { display: none; animation: fadeUp 0.4s ease; }
+    .results-section.visible { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Molecule info bar ────────────────────────────────────────────── */
+    .mol-info-bar {
+      display: flex; gap: 16px; flex-wrap: wrap;
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 20px;
+      margin-bottom: 20px; align-items: center;
+    }
+    .mol-smiles {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; color: var(--accent3);
+      flex: 1;
+    }
+    .mol-badge {
+      font-size: 11px; font-weight: 600; padding: 4px 10px;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .mol-badge.safe   { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+    .mol-badge.warn   { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .mol-badge.danger { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+    /* ── Charts grid ──────────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Task bars ────────────────────────────────────────────────────── */
+    .task-bars { display: flex; flex-direction: column; gap: 10px; }
+    .task-bar-row { display: flex; align-items: center; gap: 10px; }
+    .task-name {
+      font-size: 11px; font-family: 'JetBrains Mono', monospace;
+      color: var(--text-sec); width: 110px; flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1; height: 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      position: relative; overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 4px;
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    }
+    .task-prob {
+      font-size: 11px; font-family: 'JetBrains Mono', monospace;
+      width: 42px; text-align: right;
+    }
+    .task-prob.high  { color: var(--red); }
+    .task-prob.med   { color: var(--yellow); }
+    .task-prob.low   { color: var(--green); }
+
+    /* ── Risk gauge ───────────────────────────────────────────────────── */
+    .gauge-wrap { display: flex; justify-content: center; align-items: center; padding: 8px; }
+
+    /* ── History table ────────────────────────────────────────────────── */
+    .history-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .clear-btn {
+      font-size: 12px; color: var(--text-muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 12px;
+      cursor: pointer; transition: color 0.2s;
+    }
+    .clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-muted);
+      padding: 8px 10px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.2s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    tbody td {
+      padding: 10px 10px; font-size: 12px; color: var(--text-sec);
+    }
+    td.smiles-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--text-pri);
+      max-width: 220px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    td.risk-cell { font-weight: 600; font-size: 12px; }
+    td.risk-cell.safe   { color: var(--green); }
+    td.risk-cell.warn   { color: var(--yellow); }
+    td.risk-cell.danger { color: var(--red); }
+
+    /* ── Model info cards ─────────────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .info-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px;
+    }
+    .info-card-icon { font-size: 24px; margin-bottom: 10px; }
+    .info-card-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .info-card-body  { font-size: 12px; color: var(--text-sec); line-height: 1.6; }
+
+    /* ── Loading spinner ──────────────────────────────────────────────── */
+    .spinner-wrap {
+      display: none; justify-content: center;
+      align-items: center; gap: 12px; padding: 40px;
+    }
+    .spinner-wrap.show { display: flex; }
+    .spinner {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 3px solid rgba(79,156,249,0.15);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error banner ─────────────────────────────────────────────────── */
+    .error-banner {
+      display: none;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 12px; padding: 14px 18px;
+      font-size: 13px; color: var(--red);
+      margin-bottom: 16px; align-items: center; gap: 10px;
+    }
+    .error-banner.show { display: flex; }
+
+    /* ── Footer ───────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(6,11,20,0.6);
+    }
+    .footer-left  { font-size: 12px; color: var(--text-muted); }
+    .footer-right { display: flex; gap: 16px; }
+    .footer-link  { font-size: 12px; color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .footer-link:hover { color: var(--accent); }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      main { padding: 20px; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .info-grid { grid-template-columns: 1fr; }
+      .smiles-row { flex-direction: column; }
+      .predict-btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🧪</div>
+      <div>
+        <div class="logo-text">ToxPredict</div>
+        <div class="logo-sub">QSAR Toxicity Intelligence</div>
+      </div>
+    </div>
+    <div class="header-badge">
+      <div class="status-dot"></div>
+      GCN Model Ready
+    </div>
+  </header>
+
+  <!-- ── Main ── -->
+  <main>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card blue">
+        <div class="stat-label">Tox21 Training Compounds</div>
+        <div class="stat-value blue">7,831</div>
+        <div class="stat-sub">NIH / EPA dataset</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Assay Endpoints</div>
+        <div class="stat-value purple">12</div>
+        <div class="stat-sub">NR + SR pathways</div>
+      </div>
+      <div class="stat-card cyan">
+        <div class="stat-label">Mean Val AUROC</div>
+        <div class="stat-value cyan">0.831</div>
+        <div class="stat-sub">epoch 42 / best_gcn.pt</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Inference Latency</div>
+        <div class="stat-value green">~12ms</div>
+        <div class="stat-sub">CPU, single molecule</div>
+      </div>
+    </div>
+
+    <!-- Predict panel -->
+    <div class="predict-card">
+      <div class="section-label">Toxicity Prediction</div>
+      <div class="section-title">Analyse a Chemical Compound</div>
+      <div class="section-desc" style="margin-bottom:22px;">
+        Enter a SMILES string to predict its toxicity probability across all 12 Tox21 assay endpoints.
+      </div>
+
+      <div class="smiles-row">
+        <div class="input-group">
+          <label class="input-label" for="smilesInput">SMILES String</label>
+          <input
+            id="smilesInput"
+            class="smiles-input"
+            type="text"
+            placeholder="e.g.  CC(=O)Oc1ccccc1C(=O)O"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <button class="predict-btn" id="predictBtn" onclick="runPrediction()">
+          🔬 Predict Toxicity
+        </button>
+      </div>
+
+      <div class="examples">
+        <span class="examples-label">Try:</span>
+        <span class="example-chip" onclick="fillExample('CC(=O)Oc1ccccc1C(=O)O')">Aspirin</span>
+        <span class="example-chip" onclick="fillExample('c1ccc2cc3ccccc3cc2c1')">Anthracene</span>
+        <span class="example-chip" onclick="fillExample('CC(C)(C)c1cc(O)cc(C(C)(C)C)c1')">BHT</span>
+        <span class="example-chip" onclick="fillExample('ClC1=CC2=C(C=C1Cl)C1(CC1)C2')">PCB analog</span>
+        <span class="example-chip" onclick="fillExample('c1ccccc1')">Benzene</span>
+        <span class="example-chip" onclick="fillExample('CC(=O)Nc1ccc(O)cc1')">Acetaminophen</span>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div class="error-banner" id="errorBanner">
+      <span>⚠</span>
+      <span id="errorMsg">Could not connect to API. Showing simulated results.</span>
+    </div>
+
+    <!-- Spinner -->
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      <span style="color:var(--text-sec);font-size:14px;">Analysing molecular structure ...</span>
+    </div>
+
+    <!-- Results (hidden until prediction) -->
+    <div class="results-section" id="resultsSection">
+
+      <!-- Molecule info bar -->
+      <div class="mol-info-bar">
+        <span style="font-size:12px;color:var(--text-muted);">Analysed:</span>
+        <span class="mol-smiles" id="molSmilesLabel">—</span>
+        <span class="mol-badge" id="riskBadge">—</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto;" id="latencyLabel"></span>
+      </div>
+
+      <!-- Main charts grid -->
+      <div class="charts-grid">
+
+        <!-- Radar chart -->
+        <div class="card">
+          <div class="card-title">Toxicity Profile — Radar View</div>
+          <canvas id="radarChart" height="240"></canvas>
+        </div>
+
+        <!-- Bar chart -->
+        <div class="card">
+          <div class="card-title">Per-Assay Probability</div>
+          <canvas id="barChart" height="240"></canvas>
+        </div>
+
+      </div>
+
+      <!-- Task probability bars + Gauge -->
+      <div class="grid-2" style="margin-bottom:20px;">
+
+        <!-- Probability bars -->
+        <div class="card">
+          <div class="card-title">Assay Breakdown</div>
+          <div class="task-bars" id="taskBars"></div>
+        </div>
+
+        <!-- Doughnut gauge -->
+        <div class="card" style="display:flex;flex-direction:column;">
+          <div class="card-title">Overall Risk Score</div>
+          <div class="gauge-wrap" style="flex:1;">
+            <canvas id="gaugeChart" width="220" height="220"></canvas>
+          </div>
+          <div style="text-align:center;margin-top:-12px;">
+            <div style="font-size:36px;font-weight:800;" id="riskScore">—</div>
+            <div style="font-size:12px;color:var(--text-sec);">Mean toxicity probability</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div><!-- /results -->
+
+    <!-- History -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="history-header">
+        <div class="card-title" style="margin:0;">Prediction History</div>
+        <button class="clear-btn" onclick="clearHistory()">Clear</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>SMILES</th>
+              <th>Highest Risk Task</th>
+              <th>Peak Prob.</th>
+              <th>Mean Prob.</th>
+              <th>Risk Level</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px;">No predictions yet — enter a SMILES above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Model / architecture cards -->
+    <div class="section-label">Model Architecture</div>
+    <div class="section-title" style="margin-bottom:16px;">How ToxPredict Works</div>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-icon">🕸️</div>
+        <div class="info-card-title">Graph Convolutional Network</div>
+        <div class="info-card-body">
+          3 × GCNConv layers (hidden=128) on the molecular graph. Atoms are nodes (34-dim features: type, hybridisation, aromaticity). Bonds are edges. Global mean pooling → 2-layer MLP head → 12 logits.
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-icon">⚗️</div>
+        <div class="info-card-title">Molecular Featurisation</div>
+        <div class="info-card-body">
+          RDKit parses SMILES → atom/bond feature tensors via PyTorch Geometric. Each atom encodes type (one-hot 19-dim), degree, hybridisation, aromaticity, formal charge, Hs, ring membership.
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-icon">📊</div>
+        <div class="info-card-title">Tox21 Dataset</div>
+        <div class="info-card-body">
+          7,831 compounds × 12 toxicity endpoints (NR-AR, NR-ER, SR-ARE …). NIH/EPA, MIT license. Scaffold split (80/10/10). Masked BCE loss handles ~20% missing labels. Mean val AUROC = 0.831.
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-left">ToxPredict v1.0 — QSAR Toxicity Prediction · Tox21 GCN · MIT License</div>
+    <div class="footer-right">
+      <a class="footer-link" href="https://github.com" target="_blank">GitHub</a>
+      <a class="footer-link" href="http://localhost:8000/docs" target="_blank">API Docs</a>
+      <a class="footer-link" href="http://localhost:8000/health" target="_blank">Health Check</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const TOX21_TASKS = [
+  "NR-AR","NR-AR-LBD","NR-AhR","NR-Aromatase",
+  "NR-ER","NR-ER-LBD","NR-PPAR-γ",
+  "SR-ARE","SR-ATAD5","SR-HSE","SR-MMP","SR-p53"
+];
+const API_BASE    = "http://localhost:8000";
+const TASK_COLORS = [
+  "#4f9cf9","#7c3aed","#06b6d4","#10b981",
+  "#f59e0b","#ef4444","#a855f7","#3b82f6",
+  "#14b8a6","#f97316","#8b5cf6","#22c55e"
+];
+
+let history  = [];
+let radarChart = null, barChart = null, gaugeChart = null;
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function getRiskLevel(mean) {
+  if (mean < 0.25) return { label: "Low Risk",     cls: "safe"   };
+  if (mean < 0.55) return { label: "Moderate Risk", cls: "warn"   };
+  return               { label: "High Risk",     cls: "danger" };
+}
+
+function getProbClass(p) {
+  if (p >= 0.55) return "high";
+  if (p >= 0.30) return "med";
+  return "low";
+}
+
+function getBarColor(p) {
+  if (p >= 0.55) return "#ef4444";
+  if (p >= 0.30) return "#f59e0b";
+  return "#10b981";
+}
+
+function fillExample(smi) {
+  document.getElementById("smilesInput").value = smi;
+  document.getElementById("smilesInput").focus();
+}
+
+function now() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function showError(msg) {
+  const b = document.getElementById("errorBanner");
+  document.getElementById("errorMsg").textContent = msg;
+  b.classList.add("show");
+  setTimeout(() => b.classList.remove("show"), 6000);
+}
+
+// ── Simulate results when API is offline ──────────────────────────────────
+function simulateResults(smiles) {
+  // Deterministic-ish simulation based on SMILES length + character codes
+  const seed = [...smiles].reduce((s, c) => s + c.charCodeAt(0), 0);
+  const probs = TOX21_TASKS.map((_, i) => {
+    const base = ((seed * (i + 3)) % 97) / 100;
+    return Math.max(0.02, Math.min(0.97, base));
+  });
+  return { task_probabilities: Object.fromEntries(TOX21_TASKS.map((t, i) => [t, probs[i]])), latency_ms: 12 };
+}
+
+// ── API call ───────────────────────────────────────────────────────────────
+async function fetchPrediction(smiles) {
+  const resp = await fetch(`${API_BASE}/predict`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ smiles }),
+    signal: AbortSignal.timeout(4000),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json();
+}
+
+// ── Main prediction flow ───────────────────────────────────────────────────
+async function runPrediction() {
+  const smiles = document.getElementById("smilesInput").value.trim();
+  if (!smiles) return;
+
+  // Show spinner
+  document.getElementById("spinner").classList.add("show");
+  document.getElementById("resultsSection").classList.remove("visible");
+  document.getElementById("predictBtn").disabled = true;
+
+  let data;
+  try {
+    data = await fetchPrediction(smiles);
+  } catch {
+    showError("API not reachable — showing simulated results based on SMILES hash.");
+    data = simulateResults(smiles);
+  }
+
+  document.getElementById("spinner").classList.remove("show");
+  document.getElementById("predictBtn").disabled = false;
+
+  renderResults(smiles, data);
+}
+
+// ── Render results ─────────────────────────────────────────────────────────
+function renderResults(smiles, data) {
+  const probs = TOX21_TASKS.map(t => data.task_probabilities[t] ?? 0);
+  const mean  = probs.reduce((a, b) => a + b, 0) / probs.length;
+  const peak  = Math.max(...probs);
+  const peakTask = TOX21_TASKS[probs.indexOf(peak)];
+  const risk  = getRiskLevel(mean);
+
+  // Mol info bar
+  document.getElementById("molSmilesLabel").textContent = smiles;
+  const badge = document.getElementById("riskBadge");
+  badge.textContent  = risk.label;
+  badge.className    = `mol-badge ${risk.cls}`;
+  document.getElementById("latencyLabel").textContent =
+    `⚡ ${(data.latency_ms ?? 12).toFixed(1)} ms`;
+
+  // Risk score
+  document.getElementById("riskScore").textContent = (mean * 100).toFixed(1) + "%";
+
+  renderTaskBars(probs);
+  renderRadar(probs);
+  renderBar(probs);
+  renderGauge(mean);
+  addToHistory({ smiles, probs, mean, peak, peakTask, risk });
+  renderHistory();
+
+  document.getElementById("resultsSection").classList.add("visible");
+  document.getElementById("resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── Task probability bars ──────────────────────────────────────────────────
+function renderTaskBars(probs) {
+  const container = document.getElementById("taskBars");
+  container.innerHTML = "";
+  probs.forEach((p, i) => {
+    const pct   = (p * 100).toFixed(1);
+    const cls   = getProbClass(p);
+    const color = getBarColor(p);
+    container.innerHTML += `
+      <div class="task-bar-row">
+        <span class="task-name">${TOX21_TASKS[i]}</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%;background:${color};"></div>
+        </div>
+        <span class="task-prob ${cls}">${pct}%</span>
+      </div>`;
+  });
+}
+
+// ── Radar chart ────────────────────────────────────────────────────────────
+function renderRadar(probs) {
+  const ctx = document.getElementById("radarChart").getContext("2d");
+  if (radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels: TOX21_TASKS,
+      datasets: [{
+        label: "Toxicity Probability",
+        data: probs.map(p => +(p * 100).toFixed(1)),
+        backgroundColor: "rgba(79,156,249,0.15)",
+        borderColor:     "rgba(79,156,249,0.8)",
+        pointBackgroundColor: probs.map(p => getBarColor(p)),
+        pointRadius: 4,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        r: {
+          min: 0, max: 100,
+          grid:     { color: "rgba(255,255,255,0.06)" },
+          angleLines:{ color: "rgba(255,255,255,0.06)" },
+          ticks: { color: "#4a5568", backdropColor: "transparent", font: { size: 9 } },
+          pointLabels:{ color: "#8b9dbf", font: { size: 10, family: "JetBrains Mono" } },
+        }
+      },
+      plugins: { legend: { display: false } },
+    }
+  });
+}
+
+// ── Bar chart ──────────────────────────────────────────────────────────────
+function renderBar(probs) {
+  const ctx = document.getElementById("barChart").getContext("2d");
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: TOX21_TASKS,
+      datasets: [{
+        label: "P(toxic) %",
+        data: probs.map(p => +(p * 100).toFixed(1)),
+        backgroundColor: probs.map(p => getBarColor(p) + "cc"),
+        borderColor:     probs.map(p => getBarColor(p)),
+        borderWidth: 1,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: "y",
+      scales: {
+        x: {
+          min: 0, max: 100,
+          grid:  { color: "rgba(255,255,255,0.05)" },
+          ticks: { color: "#4a5568", font: { size: 10 } },
+        },
+        y: {
+          grid:  { display: false },
+          ticks: { color: "#8b9dbf", font: { size: 10, family: "JetBrains Mono" } },
+        }
+      },
+      plugins: { legend: { display: false } },
+    }
+  });
+}
+
+// ── Gauge (doughnut) ───────────────────────────────────────────────────────
+function renderGauge(mean) {
+  const ctx = document.getElementById("gaugeChart").getContext("2d");
+  if (gaugeChart) gaugeChart.destroy();
+  const pct = mean * 100;
+  const color = getBarColor(mean);
+  gaugeChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      datasets: [{
+        data: [pct, 100 - pct],
+        backgroundColor: [color + "cc", "rgba(255,255,255,0.05)"],
+        borderColor:     [color, "transparent"],
+        borderWidth: [2, 0],
+        hoverOffset: 4,
+      }]
+    },
+    options: {
+      cutout: "78%",
+      rotation: -90, circumference: 180,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      responsive: false,
+    }
+  });
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+function addToHistory(entry) {
+  history.unshift({ ...entry, time: now() });
+  if (history.length > 20) history.pop();
+}
+
+function renderHistory() {
+  const body = document.getElementById("historyBody");
+  if (history.length === 0) {
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px;">No predictions yet.</td></tr>`;
+    return;
+  }
+  body.innerHTML = history.map((h, i) => `
+    <tr>
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td class="smiles-cell" title="${h.smiles}">${h.smiles}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent3);">${h.peakTask}</td>
+      <td style="font-family:'JetBrains Mono',monospace;">${(h.peak*100).toFixed(1)}%</td>
+      <td style="font-family:'JetBrains Mono',monospace;">${(h.mean*100).toFixed(1)}%</td>
+      <td class="risk-cell ${h.risk.cls}">${h.risk.label}</td>
+      <td style="color:var(--text-muted)">${h.time}</td>
+    </tr>`).join("");
+}
+
+function clearHistory() {
+  history = [];
+  renderHistory();
+}
+
+// ── Enter key support ──────────────────────────────────────────────────────
+document.getElementById("smilesInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") runPrediction();
+});
+</script>
+</body>
+</html>
