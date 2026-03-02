@@ -1,0 +1,128 @@
+# Docker Compose — QSAR Toxicity Prediction Stack
+#
+# Services:
+#   api       — FastAPI inference server (port 8000)
+#   frontend  — Nginx serving the dashboard (port 3000)
+#   mlflow    — MLflow tracking server UI (port 5000)
+#
+# Usage:
+#   docker compose up --build          # start all services
+#   docker compose up api              # start only the API
+#   docker compose down -v             # stop and remove volumes
+#
+# Prerequisites:
+#   docker >= 24.0, docker compose >= 2.20
+#   Trained checkpoint must exist at: checkpoints/best_gcn.pt
+#     → Run `python train.py` first, or mount an existing checkpoint.
+
+networks:
+  qsar-net:
+    driver: bridge
+
+volumes:
+  mlflow-data:
+  checkpoints-data:
+
+services:
+
+  # ── FastAPI Inference API ───────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qsar-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount local checkpoints so the model is available inside the container
+      - ./checkpoints:/app/checkpoints:ro
+      - ./data:/app/data:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    networks:
+      - qsar-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qsar-api.rule=Host(`api.toxpredict.local`)"
+
+  # ── Frontend Dashboard (Nginx) ──────────────────────────────────────────
+  frontend:
+    image: nginx:1.25-alpine
+    container_name: qsar-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - qsar-net
+    depends_on:
+      api:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qsar-frontend.rule=Host(`toxpredict.local`)"
+
+  # ── MLflow Tracking Server ───────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: qsar-mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    command: >
+      mlflow server
+        --backend-store-uri sqlite:////mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+        --host 0.0.0.0
+        --port 5000
+    networks:
+      - qsar-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Training Job (one-shot, runs before API) ──────────────────────────────
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qsar-trainer
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+      - ./mlruns:/app/mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    command: sh -c "python src/data/preprocess.py --out-dir data/processed && python train.py --lr 1e-3 --epochs 50 --batch-size 64 --hidden 128 --dropout 0.3 --seed 42 --mlflow-uri http://mlflow:5000"
+    networks:
+      - qsar-net
+    depends_on:
+      mlflow:
+        condition: service_healthy
