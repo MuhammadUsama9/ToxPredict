@@ -30,13 +30,7 @@ from rdkit.Chem.Scaffolds import MurckoScaffold
 
 warnings.filterwarnings("ignore")
 
-DATA_DIR = Path("data")
-
-TOX21_TASKS = [
-    "NR-AR", "NR-AR-LBD", "NR-AhR", "NR-Aromatase",
-    "NR-ER", "NR-ER-LBD", "NR-PPAR-gamma",
-    "SR-ARE", "SR-ATAD5", "SR-HSE", "SR-MMP", "SR-p53",
-]
+from src.config import TOX21_TASKS
 
 
 def download_tox21() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:

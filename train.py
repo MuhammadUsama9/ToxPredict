@@ -32,29 +32,31 @@ from src.data.dataset import MoleculeGraphDataset
 from src.models.gcn_model import ToxGCN, masked_bce_loss
 from src.utils.seed_utils import set_all_seeds
 from src.utils.metrics import (
-    compute_per_task_metrics, mean_auroc, print_metrics_table, TOX21_TASKS
+    compute_per_task_metrics, mean_auroc, print_metrics_table
 )
-
-CHECKPOINT_DIR = Path("checkpoints")
-CHECKPOINT_DIR.mkdir(exist_ok=True)
-
+from src.config import (
+    TOX21_TASKS, DEFAULT_LR, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE,
+    DEFAULT_HIDDEN_DIM, DEFAULT_DROPOUT, DEFAULT_PATIENCE, DEFAULT_SEED,
+    CHECKPOINT_DIR
+)
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train ToxGCN on Tox21")
-    p.add_argument("--lr",          type=float, default=1e-3,
+    p.add_argument("--lr",          type=float, default=DEFAULT_LR,
                    help="Learning rate (searched: 1e-4 to 1e-2)")
-    p.add_argument("--epochs",      type=int,   default=50)
-    p.add_argument("--batch-size",  type=int,   default=64)
-    p.add_argument("--hidden",      type=int,   default=128,
+    p.add_argument("--epochs",      type=int,   default=DEFAULT_EPOCHS)
+    p.add_argument("--batch-size",  type=int,   default=DEFAULT_BATCH_SIZE)
+    p.add_argument("--hidden",      type=int,   default=DEFAULT_HIDDEN_DIM,
                    help="GCN hidden channel width (searched: 64, 128, 256)")
-    p.add_argument("--dropout",     type=float, default=0.3,
+    p.add_argument("--dropout",     type=float, default=DEFAULT_DROPOUT,
                    help="Dropout rate (searched: 0.1, 0.3, 0.5)")
     p.add_argument("--weight-decay",type=float, default=1e-4,
                    help="L2 regularisation coefficient")
-    p.add_argument("--patience",    type=int,   default=10,
+    p.add_argument("--patience",    type=int,   default=DEFAULT_PATIENCE,
                    help="Early stopping patience (epochs)")
-    p.add_argument("--seed",        type=int,   default=42)
+    p.add_argument("--seed",        type=int,   default=DEFAULT_SEED)
+
     p.add_argument("--train-csv",   type=str,   default="data/processed/train.csv")
     p.add_argument("--val-csv",     type=str,   default="data/processed/val.csv")
     p.add_argument("--mlflow-uri",  type=str,   default="./mlruns")
