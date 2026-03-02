@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.conda/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (raw – too large for version control)
+data/raw/
+data/processed/
+
+# Model checkpoints (tracked via MLflow / DVC instead)
+checkpoints/
+*.pt
+*.pkl
+*.pth
+*.onnx
+
+# Outputs
+outputs/
+
+# MLflow artifacts
+mlruns/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment files with secrets
+.env
+.env.*
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
