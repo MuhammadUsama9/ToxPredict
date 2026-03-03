@@ -119,5 +119,3 @@ You can test the system through the dashboard at `http://localhost:3000` with so
 
 Once requested, the system maps the probability of response over all biological assays predicting safe, moderate, or high risk levels!
 
-## 📜 License
-This project is open-source and released to the general public under the MIT License.

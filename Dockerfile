@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy project source
 COPY src/ ./src/
+COPY tests/ ./tests/
 COPY checkpoints/ ./checkpoints/
 COPY train.py evaluate.py ./
 
