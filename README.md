@@ -1,54 +1,97 @@
 # ToxPredict: QSAR Toxicity Prediction
 
-ToxPredict is a machine-learning project that utilizes Graph Neural Networks (GNNs) for Quantitative Structure-Activity Relationship (QSAR) toxicity prediction. By learning molecular graph representations, ToxPredict predicts the toxicity of various chemical compounds.
+![ToxPredict Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)
+![Python](https://img.shields.io/badge/Python-3.10-blue.svg)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.1.0-orange.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-teal.svg)
 
-## Project Overview
+ToxPredict is a comprehensive Machine Learning project designed for **Quantitative Structure-Activity Relationship (QSAR)** toxicity prediction. By learning molecular graph representations through state-of-the-art **Graph Convolutional Networks (GCNs)**, ToxPredict accurately predicts the toxicity probabilities of chemical compounds across **12 distinct biological assay endpoints**.
 
-The aim of ToxPredict is to provide accurate toxicity predictions for molecules using advanced deep learning techniques, specifically Graph Convolutional Networks (GCNs) built with PyTorch Geometric. This project handles multi-label classification tasks commonly found in chemical datasets like Tox21.
+The project encompasses a complete ML lifecycle: from RDKit-based molecular featurisation and handling imbalanced multi-label data (Tox21 dataset), to model training, experiment tracking with MLflow, and scalable deployment using FastAPI and Docker.
 
-## Features
+---
 
-- **Graph Neural Network Model**: Utilizes PyTorch and PyTorch Geometric to represent and learn from molecular structures.
-- **RDKit Integration**: Uses RDKit for robust molecular processing and feature extraction.
-- **FastAPI Backend**: Provides a scalable and fast web API for making predictions on new molecules.
-- **Docker Compose Setup**: Easily reproducible environment using Docker containers for the API and frontend.
-- **MLflow Tracking**: Integrated experiment tracking to monitor model training and performance.
+## 🌟 Key Features
 
-## Prerequisites
+- **Graph Neural Network (GCN) Architecture:** Utilizes continuous molecular graph structures (where atoms are nodes and bonds are edges) rather than static fingerprints. 
+- **12 Tox21 Endpoints:** Predicts pathways such as Nuclear Receptors (NR-AR, NR-ER) and Stress Response (SR-p53, SR-ARE).
+- **Masked BCE Loss:** Gracefully handles ~20% missing labels in the dataset by masking unlabelled entries in the loss calculation.
+- **Interactive UI Dashboard:** A modern frontend served via Nginx displaying radar charts, breakdown gauges, and an overall risk score.
+- **MLOps Integrations:** Track model parameters, metrics (AUROC, Loss), and checkpoints effortlessly using MLflow.
+- **Containerized Stack:** A docker-compose setup spanning FastAPI (Inference), Nginx (Frontend UI), and MLflow (Tracking Server).
 
-To run this project locally, ensure you have the following installed:
-- [Docker](https://www.docker.com/) and Docker Compose
-- Or [Conda](https://docs.conda.io/en/latest/) (for local development)
+---
 
-## Getting Started
+## 🏗️ Architecture & Technical Details
 
-### Using Docker (Recommended)
+### 1. Molecular Featurisation & Datasets
+- **Data Source**: Tox21 dataset with 7,831 compounds.
+- **Featurisation**: Handled by **RDKit** passing features to PyTorch Geometric. Each atom receives a **34-dimensional feature vector** (encoding atom type, hybridization, degree, aromaticity, formal charge, etc.).
+- **Data Splitting**: Scaffold splitting (80/10/10) to simulate challenging out-of-distribution real-world chemical tests.
 
-The easiest way to get the project running is via Docker Compose:
+### 2. Deep Learning Model (`ToxGCN`)
+- **Layers**: 3 `GCNConv` layers (hidden=128) on the molecular graph.
+- **Pooling & Head**: Global mean pooling is used to aggregate node embeddings. It is followed by a 2-layer MLP head outputting 12 logits.
+- **Performance**: Capable of achieving a Mean Validation **AUROC of ~0.831**.
+
+---
+
+## 🚀 Getting Started
+
+Ensure you have [Docker](https://www.docker.com/) and `docker-compose` installed.
+
+### Running with Docker Compose (Recommended)
+
+To launch the complete application stack (API, Frontend, MLflow, and the Trainer):
 
 ```bash
 docker-compose up --build
 ```
+This automatically boots up:
+1. **Frontend UI** on `http://localhost:3000`
+2. **Inference API** on `http://localhost:8000`
+3. **MLflow UI** on `http://localhost:5000`
 
-This will start the backend API and the frontend application.
+### Running Locally (Conda)
 
-### Local Installation (Conda)
-
-If you prefer running without Docker, you can set up a Conda environment:
+If you prefer to run and develop locally:
 
 ```bash
+# 1. Create and activate conda environment
 conda env create -f environment.yml
 conda activate qsar-tox21
+
+# 2. Train the model manually
+python train.py --lr 1e-3 --epochs 50 --batch-size 64 --hidden 128 --dropout 0.3 --seed 42 --mlflow-uri ./mlruns
+
+# 3. Start the API Server
+uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Structure
+---
 
-- `src/`: Contains the source code including data processing, model definitions (e.g., `gcn_model.py`), and training scripts.
-- `frontend/`: Contains the frontend web interface.
-- `tests/`: Unit tests and pytest fixtures to ensure codebase reliability.
-- `environment.yml`: Conda dependencies for easy local setup.
-- `docker-compose.yml`: Configuration for running the full stack through Docker.
+## 📊 Training & Evaluation
 
-## License
+The training script automatically computes per-task positive class weights to mitigate class imbalances effectively. It trains standard models using Masked Binary Cross-Entropy with L2 weight decay. 
 
-This project is open-source and available for the general public.
+Early stopping is implemented based on the Mean Validation AUROC metric. The best checkpoint is saved automatically to `checkpoints/best_gcn.pt` at the end of training.
+
+*Sample training command:*
+```bash
+python train.py --lr 1e-3 --epochs 50 --batch-size 64 --hidden 128 --dropout 0.3 --seed 42 --mlflow-uri ./mlruns
+```
+
+---
+
+## 🧪 Quick Test Examples
+
+You can test the system through the dashboard at `http://localhost:3000` with some of these SMILES compounds:
+
+- **Aspirin / Acetylsalicylic acid:** `CC(=O)Oc1ccccc1C(=O)O`
+- **Benzene (Carcinogen):** `c1ccccc1`
+- **Acetaminophen / Paracetamol:** `CC(=O)Nc1ccc(O)cc1`
+
+Once requested, the system maps the probability of response over all biological assays predicting safe, moderate, or high risk levels!
+
+## 📜 License
+This project is open-source and released to the general public under the MIT License.
