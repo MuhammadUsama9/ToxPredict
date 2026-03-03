@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qsar-api
+  labels:
+    app: qsar-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qsar-api
+  template:
+    metadata:
+      labels:
+        app: qsar-api
+    spec:
+      containers:
+      - name: api
+        image: toxpredict/api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: PYTHONPATH
+          value: "."
+        - name: MLFLOW_TRACKING_URI
+          value: "http://qsar-mlflow:5000"
+        volumeMounts:
+        - name: checkpoints-volume
+          mountPath: /app/checkpoints
+          readOnly: true
+        - name: data-volume
+          mountPath: /app/data
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: checkpoints-volume
+        hostPath:
+          path: /absolute/path/to/your/project/checkpoints # UPDATE THIS PATH
+          type: Directory
+      - name: data-volume
+        hostPath:
+          path: /absolute/path/to/your/project/data # UPDATE THIS PATH
+          type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qsar-api
+spec:
+  selector:
+    app: qsar-api
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

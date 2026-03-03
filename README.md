@@ -52,6 +52,32 @@ This automatically boots up:
 2. **Inference API** on `http://localhost:8000`
 3. **MLflow UI** on `http://localhost:5000`
 
+### Running with Kubernetes
+
+For production readiness and higher scalability, Kubernetes is supported. Manifests are located in the `kubernetes_manifests/` directory.
+
+Before deploying, ensure you modify `api.yaml` and `frontend.yaml` to point the `hostPath` volumes correctly to your local project directory.
+
+To deploy all services onto a local or cloud cluster:
+
+```bash
+# 1. First, deploy MLflow (uses Persistent Volume Claim)
+kubectl apply -f kubernetes_manifests/mlflow.yaml
+
+# 2. Deploy the Inference API
+kubectl apply -f kubernetes_manifests/api.yaml
+
+# 3. Deploy the Dashboard UI
+kubectl apply -f kubernetes_manifests/frontend.yaml
+```
+
+Check the status with:
+```bash
+kubectl get pods
+```
+
+*Note: You may still need to use docker-compose up trainer or run train.py locally to generate the initial checkpoint.*
+
 ### Running Locally (Conda)
 
 If you prefer to run and develop locally:
