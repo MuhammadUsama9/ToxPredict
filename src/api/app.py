@@ -14,6 +14,7 @@ Deployment (M2 requirement):
 """
 
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -101,11 +102,13 @@ class ToxPrediction(BaseModel):
     smiles:             str
     task_probabilities: dict   # {task_name: probability}
     latency_ms:         float
+    timestamp_iso:      str
 
 
 class BatchToxPrediction(BaseModel):
     predictions: List[ToxPrediction]
     mean_latency_ms: float
+    timestamp_iso:   str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -136,6 +139,17 @@ def health_check():
     return {"status": "ok", "model_loaded": model_loaded, "device": str(DEVICE)}
 
 
+@app.get("/model-info", tags=["info"])
+def get_model_info():
+    """Returns basic information about the deployed model."""
+    try:
+        model = _load_model()
+        params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        return {"model_name": "ToxGCN", "trainable_parameters": params, "supported_tasks": TOX21_TASKS}
+    except FileNotFoundError:
+        return {"status": "error", "message": "Model checkpoint not found."}
+
+
 @app.post("/predict", response_model=ToxPrediction, tags=["inference"])
 def predict(payload: SMILESInput):
     """
@@ -156,6 +170,7 @@ def predict(payload: SMILESInput):
         smiles=payload.smiles,
         task_probabilities=probs,
         latency_ms=round(latency_ms, 2),
+        timestamp_iso=datetime.utcnow().isoformat() + "Z",
     )
 
 
@@ -185,9 +200,11 @@ def predict_batch(payload: BatchSMILESInput):
             smiles=smi,
             task_probabilities=probs,
             latency_ms=round(latency_ms, 2),
+            timestamp_iso=datetime.utcnow().isoformat() + "Z",
         ))
 
     return BatchToxPrediction(
         predictions=predictions,
         mean_latency_ms=round(float(np.mean(latencies)), 2),
+        timestamp_iso=datetime.utcnow().isoformat() + "Z",
     )
