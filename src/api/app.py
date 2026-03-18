@@ -22,6 +22,8 @@ import torch
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
+from rdkit import Chem
+from rdkit.Chem import Descriptors
 
 from src.data.dataset import smiles_to_pyg
 from src.models.gcn_model import ToxGCN
@@ -108,6 +110,16 @@ class ToxPrediction(BaseModel):
 class BatchToxPrediction(BaseModel):
     predictions: List[ToxPrediction]
     mean_latency_ms: float
+    timestamp_iso:   str
+
+
+class CompoundProperties(BaseModel):
+    smiles:          str
+    mol_weight:      float
+    log_p:           float
+    num_h_donors:    int
+    num_h_acceptors: int
+    latency_ms:      float
     timestamp_iso:   str
 
 
@@ -206,5 +218,29 @@ def predict_batch(payload: BatchSMILESInput):
     return BatchToxPrediction(
         predictions=predictions,
         mean_latency_ms=round(float(np.mean(latencies)), 2),
+        timestamp_iso=datetime.utcnow().isoformat() + "Z",
+    )
+
+
+@app.post("/properties", response_model=CompoundProperties, tags=["info"])
+def get_properties(payload: SMILESInput):
+    """
+    Calculate basic physiochemical properties for a given SMILES string
+    using RDKit.
+    """
+    t0 = time.perf_counter()
+    mol = Chem.MolFromSmiles(payload.smiles)
+    if mol is None:
+        raise HTTPException(status_code=422, detail=f"Invalid SMILES string: '{payload.smiles}'")
+    
+    latency_ms = (time.perf_counter() - t0) * 1000
+
+    return CompoundProperties(
+        smiles=payload.smiles,
+        mol_weight=round(Descriptors.MolWt(mol), 2),
+        log_p=round(Descriptors.MolLogP(mol), 2),
+        num_h_donors=Descriptors.NumHDonors(mol),
+        num_h_acceptors=Descriptors.NumHAcceptors(mol),
+        latency_ms=round(latency_ms, 2),
         timestamp_iso=datetime.utcnow().isoformat() + "Z",
     )
