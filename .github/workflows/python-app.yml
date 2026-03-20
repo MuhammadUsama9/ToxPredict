@@ -32,8 +32,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        # Install PyG explicitly as it often needs special handling on CI
+        # Install CPU-only torch to prevent OOM / extraction corruption on GitHub Actions
+        pip install torch==2.1.0+cpu torchvision==0.16.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+        # Install the rest of the requirements ignoring the torch lines
+        grep -v "^torch==" requirements.txt | grep -v "^torchvision==" > req_ci.txt
+        pip install -r req_ci.txt
+        # Install PyG explicitly
         pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
 
     - name: Lint with flake8
