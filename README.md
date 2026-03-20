@@ -32,6 +32,17 @@ While it might seem simpler to maintain a database of known toxic chemicals for 
 
 ---
 
+## ⚙️ MLOps Implementation
+
+ToxPredict employs industry-standard MLOps practices to ensure reproducibility, scalable training, and robust deployment:
+
+- **Experiment Tracking (MLflow):** The `train.py` script automatically tracks hyperparameters (learning rate, dropout, hidden dims), logs epoch-level validation metrics (AUROC, Loss), and registers the best performing model checkpoint as an MLflow artifact. A dedicated MLflow tracking server is spun up natively via Docker Compose.
+- **Continuous Integration (GitHub Actions):** Every push or pull request to the `main` branch triggers an automated CI pipeline. The pipeline statically analyzes the code using `flake8` and runs a suite of PyTorch/FastAPI unit tests via `pytest` to prevent regressions.
+- **Containerization & Orchestration:** The entire stack defaults to Docker. The `docker-compose.yml` orchestrates 4 independent microservices: the Inference API, Nginx Frontend, MLflow server, and a one-shot Trainer container. Extensive `healthcheck` conditions ensure services only bind when their upstream dependencies are ready.
+- **Kubernetes Readiness:** Manifests (`kubernetes_manifests/`) are provided for deploying the API, Frontend, and MLflow (with Persistent Volume Claims) directly onto a production K8s cluster.
+
+---
+
 ## 🏗️ Architecture & Technical Details
 
 ### 1. Molecular Featurisation & Datasets
