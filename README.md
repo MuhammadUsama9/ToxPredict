@@ -11,6 +11,16 @@ The project encompasses a complete ML lifecycle: from RDKit-based molecular feat
 
 ---
 
+## 🤖 Why use AI for Toxicity Prediction?
+
+While it might seem simpler to maintain a database of known toxic chemicals for lookup, that approach has significant limitations. Here is why an AI-driven approach (like ToxGCN) is essential:
+
+- **The "Unknown" Chemical Problem:** Millions of novel compounds are designed every year in drug discovery and materials science. A simple internet lookup only works for chemicals that have already been discovered and tested. AI allows us to predict the toxicity of a *new* chemical before it even exists in the real world.
+- **Speed and Cost Efficiency:** Traditional lab testing (in vitro/in vivo) is slow and extremely expensive. An AI model can perform high-throughput virtual screening of thousands of molecular structures in milliseconds.
+- **Learning Chemical Rules:** Instead of memorizing which chemicals are toxic, the Graph Convolutional Network learns the underlying structural patterns and rules (e.g., specific ring structures attached to certain atoms). This allows it to accurately generalize and predict toxicity for entirely unseen molecules.
+
+---
+
 ## 🌟 Key Features
 
 - **Graph Neural Network (GCN) Architecture:** Utilizes continuous molecular graph structures (where atoms are nodes and bonds are edges) rather than static fingerprints. 
