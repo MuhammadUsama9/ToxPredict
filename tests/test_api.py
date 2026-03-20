@@ -1,12 +1,6 @@
 import sys
 from unittest.mock import MagicMock
 
-# Mock ML dependencies to avoid installing them for simple API tests
-sys.modules['torch'] = MagicMock()
-sys.modules['torch.utils'] = MagicMock()
-sys.modules['torch.utils.data'] = MagicMock()
-sys.modules['torch_geometric'] = MagicMock()
-sys.modules['torch_geometric.data'] = MagicMock()
 
 import pytest
 from fastapi.testclient import TestClient
